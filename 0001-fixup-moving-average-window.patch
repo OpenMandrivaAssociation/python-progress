@@ -1,0 +1,124 @@
+Fix fast upload avg calculation
+
+Upstream verigak/progress is broken for very fast uploads; e.g.
+with 'copr build' command, the next() call is called so often that
+the avg() calculation probably suffers from some small
+floating-point numbers problems:
+
+  With 15MB/s => next() called for each 8096B => ~2000 calls/s
+
+Since the upstream default window size is only of size 10 items
+(by default), it calculates the average speed only for the last
+~0.005s.  We could enlarge the size of window (sma_window param),
+but the algorithm is so naive that it would decrease the
+performance.
+
+This has been discussed very extensively with upstream (PR 24 and
+friends) but I neither was not able to explain the problem, nor I
+was able to convince upstream to accept my patches.
+
+This downstream patch - while it keeps the backward API
+compatibility - changes the algorithm so the average speed is
+calculation is fast enough, and much more stable (by default it
+calculates speed for window of 2 seconds).
+
+Fork with this patch backported is maintained in
+https://github.com/python-progress/python-progress
+
+diff --git a/progress/__init__.py b/progress/__init__.py
+index a41f65d..1147462 100644
+--- a/progress/__init__.py
++++ b/progress/__init__.py
+@@ -24,16 +24,53 @@ from time import time
+ __version__ = '1.4'
+ 
+ 
++class _Window(object):
++    max_seconds = 2
++    max_items = None
++
++    def __init__(self, max_seconds=2, max_items=None):
++        self.max_seconds = max_seconds
++        self.max_items = max_items
++
++        stamp = time()
++        self.last = stamp - 0.001
++        self.counter = 0
++        self.deque = deque()
++        self.next(0, stamp)
++
++    def pop(self):
++        item = self.deque.popleft()
++        self.counter -= item[1]
++
++    def clean(self):
++        if self.max_items:
++            while len(self.deque) > self.max_items:
++                self.pop()
++        while len(self.deque) > 2 and self.last - self.deque[0][0] > float(self.max_seconds):
++            self.pop()
++
++    def next(self, n, t):
++        self.clean()
++        self.deque.append((self.last, n))
++        self.last = t
++        self.counter += n
++
++    @property
++    def avg(self):
++        return self.counter / (self.last - self.deque[0][0])
++
++
+ class Infinite(object):
+     file = stderr
+-    sma_window = 10         # Simple Moving Average window
++    # Maximum number of next() calls to be held in Simple Moving Average
++    # window structure (in memory), default is unlimited.
++    sma_window_seconds = 2
++    sma_window = None
+ 
+     def __init__(self, *args, **kwargs):
+         self.index = 0
+         self.start_ts = time()
+-        self.avg = 0
+-        self._ts = self.start_ts
+-        self._xput = deque(maxlen=self.sma_window)
++        self.window = _Window(self.sma_window_seconds, self.sma_window)
+         for key, val in kwargs.items():
+             setattr(self, key, val)
+ 
+@@ -46,15 +83,17 @@ class Infinite(object):
+     def elapsed(self):
+         return int(time() - self.start_ts)
+ 
++    @property
++    def avg(self):
++        speed = self.window.avg
++        if speed:
++            return 1/speed
++        return 3600 # better constant?
++
+     @property
+     def elapsed_td(self):
+         return timedelta(seconds=self.elapsed)
+ 
+-    def update_avg(self, n, dt):
+-        if n > 0:
+-            self._xput.append(dt / n)
+-            self.avg = sum(self._xput) / len(self._xput)
+-
+     def update(self):
+         pass
+ 
+@@ -65,10 +104,7 @@ class Infinite(object):
+         pass
+ 
+     def next(self, n=1):
+-        now = time()
+-        dt = now - self._ts
+-        self.update_avg(n, dt)
+-        self._ts = now
++        self.window.next(n, time())
+         self.index = self.index + n
+         self.update()
+ 
