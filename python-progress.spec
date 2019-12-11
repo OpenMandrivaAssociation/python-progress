@@ -3,7 +3,7 @@
 
 Name:           python-%{pypi_name}
 Version:	1.5
-Release:	1
+Release:	2
 Summary:        Easy to use progress bars
 Group:          Development/Python
 License:        ISC
