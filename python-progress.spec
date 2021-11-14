@@ -2,13 +2,13 @@
 %global pypi_name progress
 
 Name:           python-%{pypi_name}
-Version:	1.5
-Release:	2
+Version:	1.6
+Release:	1
 Summary:        Easy to use progress bars
 Group:          Development/Python
 License:        ISC
 URL:            http://github.com/verigak/progress/
-Source0:	https://files.pythonhosted.org/packages/38/ef/2e887b3d2b248916fc2121889ce68af8a16aaddbe82f9ae6533c24ff0d2b/progress-1.5.tar.gz
+Source0:	https://files.pythonhosted.org/packages/2a/68/d8412d1e0d70edf9791cbac5426dc859f4649afc22f2abbeb0d947cf70fd/progress-1.6.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  python-devel
