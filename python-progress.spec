@@ -3,7 +3,7 @@
 
 Name:		python-progress
 Version:	1.6.1
-Release:	1
+Release:	2
 Summary:	Easy to use progress bars
 Group:		Development/Python
 License:	ISC
